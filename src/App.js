@@ -1,37 +1,24 @@
 import React, { useState, useEffect } from 'react';
 
-// Attempt to import the Funkit API.  If the package isn't available
-// (for example when running offline or without installing the dependency),
-// these imports will throw.  Consumers of this repository should run
-// `npm install` to install the package before using the app.
 let getAssetErc20ByChainAndSymbol;
 let getAssetPriceInfo;
 try {
-  // eslint-disable-next-line import/no-extraneous-dependencies
-  // eslint-disable-next-line global-require
   const api = require('@funkit/api-base');
+  // Uncomment and configure the next line if the library supports setting a base URL for proxy:
+  // api.configure({ baseURL: '/api' });
+
   getAssetErc20ByChainAndSymbol = api.getAssetErc20ByChainAndSymbol;
   getAssetPriceInfo = api.getAssetPriceInfo;
 } catch (e) {
-  // Fallback stubs that log a warning.  These functions return
-  // dummy values so that the UI continues to function even when
-  // the Funkit package is unavailable.  Replace these stubs by
-  // installing the package with `npm install` and supplying a valid API key.
   console.warn('Funkit API not found. Falling back to dummy functions.');
-  getAssetErc20ByChainAndSymbol = async ({ chainId, symbol }) => {
-    // Return a dummy token address.  In a real application
-    // this call returns metadata including decimals and token address.
-    return {
-      data: {
-        tokenAddress: `${symbol.toLowerCase()}-token-address-${chainId}`,
-        symbol,
-        chainId,
-      },
-    };
-  };
+  getAssetErc20ByChainAndSymbol = async ({ chainId, symbol }) => ({
+    data: {
+      tokenAddress: `${symbol.toLowerCase()}-token-address-${chainId}`,
+      symbol,
+      chainId,
+    },
+  });
   getAssetPriceInfo = async ({ chainId, assetTokenAddress }) => {
-    // Generate a pseudo-random price for demonstration purposes.
-    // Do NOT rely on this for real-world calculations.
     const pseudoPrice = (chainId.toString().split('').reduce((a, b) => a + Number(b), 0) + assetTokenAddress.length) / 10;
     return {
       data: {
@@ -41,13 +28,8 @@ try {
   };
 }
 
-// Development API key provided in the assignment.  In production
-// you should store API keys in environment variables (e.g. .env file)
-// and never commit them to source control.
-const API_KEY = process.env.REACT_APP_FUNKIT_API_KEY ||'Z9SZaOwpmE40KX61mUKWm5hrpGh7WHVkaTvQJpQk'
-// List of tokens supported by the sample app.  You can add more tokens
-// here or fetch a token list dynamically.  Each entry must define
-// a symbol and the chainId on which the token resides.
+const API_KEY = process.env.REACT_APP_FUNKIT_API_KEY;
+
 const TOKENS = [
   { symbol: 'USDC', chainId: '1' },
   { symbol: 'USDT', chainId: '137' },
@@ -55,12 +37,6 @@ const TOKENS = [
   { symbol: 'WBTC', chainId: '1' },
 ];
 
-/**
- * Main application component.  This component renders a simple interface for
- * entering a USD amount, selecting a source and target token, and displaying
- * approximate conversions into those tokens.  It demonstrates how to call
- * the Funkit API to retrieve token metadata and price information.
- */
 function App() {
   const [baseToken, setBaseToken] = useState(TOKENS[0]);
   const [targetToken, setTargetToken] = useState(TOKENS[1]);
@@ -70,10 +46,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Whenever the selected tokens or USD amount change, fetch new price data.
   useEffect(() => {
     async function fetchPrices() {
-      // Ignore empty amounts or non‑numeric input.
       if (!usdAmount || isNaN(Number(usdAmount))) {
         setBaseAmount(null);
         setTargetAmount(null);
@@ -82,10 +56,6 @@ function App() {
       setLoading(true);
       setError(null);
       try {
-        // Get metadata for the selected tokens.  The API returns
-        // information including the token address required by
-        // getAssetPriceInfo.  If the token resides on a non‑EVM chain
-        // or is not supported, the call may throw an error.
         const baseInfo = await getAssetErc20ByChainAndSymbol({
           chainId: baseToken.chainId,
           symbol: baseToken.symbol,
@@ -96,15 +66,14 @@ function App() {
           symbol: targetToken.symbol,
           apiKey: API_KEY,
         });
-        // Extract token addresses from the API response.  Adjust
-        // the property names to match the actual API response.  Here we
-        // assume the structure { data: { tokenAddress: string } }.
-        const baseAddress = baseInfo.data.tokenAddress;
-        const targetAddress = targetInfo.data.tokenAddress;
 
-        // Fetch USD price for each token.  The API returns an object
-        // containing at least a priceUSD field.  Adjust property names
-        // if needed based on the real API response.
+        const baseAddress = baseInfo?.address || baseInfo?.data?.tokenAddress || baseInfo?.tokenAddress;
+        const targetAddress = targetInfo?.address || targetInfo?.data?.tokenAddress || targetInfo?.tokenAddress;
+
+        if (!baseAddress || !targetAddress) {
+          throw new Error('Token address not found in API response. Check the response structure.');
+        }
+
         const basePriceResp = await getAssetPriceInfo({
           chainId: baseToken.chainId,
           assetTokenAddress: baseAddress,
@@ -115,19 +84,16 @@ function App() {
           assetTokenAddress: targetAddress,
           apiKey: API_KEY,
         });
-        const basePriceUSD = basePriceResp.data.priceUSD;
-        const targetPriceUSD = targetPriceResp.data.priceUSD;
-        // Convert the USD amount to token amounts.  Guard against
-        // division by zero in the unlikely event of a zero price.
+
+        const basePriceUSD = basePriceResp?.data?.priceUSD || 0;
+        const targetPriceUSD = targetPriceResp?.data?.priceUSD || 0;
+
         const usd = Number(usdAmount);
         const baseAmt = basePriceUSD ? usd / basePriceUSD : 0;
         const targetAmt = targetPriceUSD ? usd / targetPriceUSD : 0;
         setBaseAmount(baseAmt);
         setTargetAmount(targetAmt);
       } catch (e) {
-        // In practice you may inspect the error object and display
-        // specific messages.  Here we fall back to a generic message.
-        console.error(e);
         setError('Failed to fetch token information. Please ensure the API key is valid and your network connection is available.');
         setBaseAmount(null);
         setTargetAmount(null);
@@ -162,7 +128,7 @@ function App() {
           }}
         >
           {TOKENS.map((token) => (
-            <option key={token.symbol} value={token.symbol}>
+            <option key={`${token.symbol}-${token.chainId}`} value={token.symbol}>
               {token.symbol}
             </option>
           ))}
@@ -179,13 +145,12 @@ function App() {
           }}
         >
           {TOKENS.map((token) => (
-            <option key={token.symbol} value={token.symbol}>
+            <option key={`${token.symbol}-${token.chainId}`} value={token.symbol}>
               {token.symbol}
             </option>
           ))}
         </select>
       </div>
-      {/* Display loading, error, or results */}
       {loading && <p className="status">Loading...</p>}
       {error && <p className="error">{error}</p>}
       {!loading && !error && baseAmount !== null && targetAmount !== null && (
