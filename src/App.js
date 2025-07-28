@@ -44,8 +44,7 @@ try {
 // Development API key provided in the assignment.  In production
 // you should store API keys in environment variables (e.g. .env file)
 // and never commit them to source control.
-const API_KEY = 'Z9SZaOwpmE40KX61mUKWm5hrpGh7WHVkaTvQJpQk';
-
+const API_KEY = process.env.REACT_APP_FUNKIT_API_KEY ||'Z9SZaOwpmE40KX61mUKWm5hrpGh7WHVkaTvQJpQk'
 // List of tokens supported by the sample app.  You can add more tokens
 // here or fetch a token list dynamically.  Each entry must define
 // a symbol and the chainId on which the token resides.
